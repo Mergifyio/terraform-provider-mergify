@@ -1,0 +1,22 @@
+# Binaries
+terraform-provider-mergify
+terraform-provider-mergify_v*
+dist/
+
+# Go
+*.test
+*.out
+vendor/
+
+# Terraform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+
+# Editor/OS
+.idea/
+.vscode/
+.DS_Store
