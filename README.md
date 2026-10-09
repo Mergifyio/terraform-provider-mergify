@@ -7,6 +7,10 @@ Manage [Mergify](https://mergify.com) resources via Terraform.
 Early development. Currently exposes:
 
 - `mergify_repository_products` — manage which Mergify products are enabled on a GitHub repository.
+- `mergify_organization_default_products` — manage the products enabled by default on new repositories.
+- `mergify_slack_merge_queue_notification`, `mergify_slack_ci_insights_notification`,
+  `mergify_slack_test_quarantine_notification` — post notifications to a Slack channel
+  connected from the Mergify dashboard, looked up with the `mergify_slack_channel` data source.
 
 ## Usage
 
