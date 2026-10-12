@@ -90,7 +90,7 @@ func (d *SlackChannelDataSource) Read(ctx context.Context, req datasource.ReadRe
 		return
 	}
 
-	channels, err := d.client.ListSlackChannels(ctx, data.Owner.ValueString())
+	configuration, err := d.client.GetSlackConfiguration(ctx, data.Owner.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Mergify API error listing Slack channels", err.Error())
 		return
@@ -98,7 +98,7 @@ func (d *SlackChannelDataSource) Read(ctx context.Context, req datasource.ReadRe
 
 	name := strings.TrimPrefix(data.Name.ValueString(), "#")
 	var matches []SlackChannel
-	for _, ch := range channels {
+	for _, ch := range configuration.Channels {
 		if strings.TrimPrefix(ch.SlackChannel, "#") != name {
 			continue
 		}
