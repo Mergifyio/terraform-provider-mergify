@@ -1,0 +1,24 @@
+name: ci
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - run: go vet ./...
+
+      # The resource tests drive a real Terraform CLI against a fake Mergify
+      # API; terraform-plugin-testing downloads the CLI when none is installed.
+      - run: go test ./...

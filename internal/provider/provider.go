@@ -91,9 +91,14 @@ func (p *MergifyProvider) Resources(_ context.Context) []func() resource.Resourc
 	return []func() resource.Resource{
 		NewRepositoryProductsResource,
 		NewOrganizationDefaultProductsResource,
+		NewSlackMergeQueueNotificationResource,
+		NewSlackCIInsightsNotificationResource,
+		NewSlackTestQuarantineNotificationResource,
 	}
 }
 
 func (p *MergifyProvider) DataSources(_ context.Context) []func() datasource.DataSource {
-	return nil
+	return []func() datasource.DataSource{
+		NewSlackChannelDataSource,
+	}
 }
