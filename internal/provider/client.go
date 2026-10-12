@@ -176,12 +176,23 @@ func (ch *SlackChannel) Notification(responseKey, id string) (*SlackNotification
 }
 
 // SlackNotification is a notification configuration of any product: the
-// fields besides `id` and `repositories` that hold a list of strings are the
-// product's filters, and which ones exist depends on the product.
+// fields besides `id`, `repositories` and `events` that hold a list of
+// strings are the product's filters, and which ones exist depends on the
+// product.
 type SlackNotification struct {
 	ID           string
 	Repositories []string
-	Filters      map[string][]string
+	// The merge queue events with the outcomes each one posts, which the API
+	// always spells out.
+	Events  []SlackNotificationEvent
+	Filters map[string][]string
+}
+
+// SlackNotificationEvent is a merge queue event narrowed to some of its
+// outcomes; empty outcomes in a request means every outcome.
+type SlackNotificationEvent struct {
+	Type     string   `json:"type"`
+	Outcomes []string `json:"outcomes"`
 }
 
 func (n *SlackNotification) UnmarshalJSON(data []byte) error {
@@ -207,6 +218,10 @@ func (n *SlackNotification) UnmarshalJSON(data []byte) error {
 			for _, r := range repositories {
 				n.Repositories = append(n.Repositories, r.Name)
 			}
+		case "events":
+			if err := json.Unmarshal(raw, &n.Events); err != nil {
+				return fmt.Errorf("decode events: %w", err)
+			}
 		default:
 			// Any other shape is a field the provider does not manage.
 			var values []string
@@ -218,8 +233,10 @@ func (n *SlackNotification) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-type slackConfigurationResponse struct {
+type SlackConfiguration struct {
 	Channels []SlackChannel `json:"channels"`
+	// The outcomes each merge queue event can have, keyed by event.
+	MergeQueueEventPossibleOutcomes map[string][]string `json:"merge_queue_event_possible_outcomes"`
 }
 
 func slackPath(owner string, segments ...string) string {
@@ -230,17 +247,18 @@ func slackPath(owner string, segments ...string) string {
 	return path
 }
 
-func (c *Client) ListSlackChannels(ctx context.Context, owner string) ([]SlackChannel, error) {
-	var resp slackConfigurationResponse
+func (c *Client) GetSlackConfiguration(ctx context.Context, owner string) (*SlackConfiguration, error) {
+	var resp SlackConfiguration
 	if err := c.do(ctx, http.MethodGet, slackPath(owner), nil, &resp); err != nil {
 		return nil, err
 	}
-	return resp.Channels, nil
+	return &resp, nil
 }
 
 // SlackNotificationBody is the request body of a notification configuration:
-// `repositories` plus the product's filters, each a list of strings.
-type SlackNotificationBody map[string][]string
+// `repositories` plus the product's filters, each a list of strings, or the
+// merge queue's `events`.
+type SlackNotificationBody map[string]any
 
 func (c *Client) CreateSlackNotification(ctx context.Context, owner, channelID, product string, body SlackNotificationBody) (*SlackNotification, error) {
 	var resp SlackNotification

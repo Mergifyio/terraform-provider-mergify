@@ -38,3 +38,22 @@ func unique(values []string) []string {
 	}
 	return out
 }
+
+// sameElements tells whether a and b hold the same values, ignoring order and
+// duplicates.
+func sameElements(a, b []string) bool {
+	a, b = unique(a), unique(b)
+	if len(a) != len(b) {
+		return false
+	}
+	seen := map[string]bool{}
+	for _, v := range a {
+		seen[v] = true
+	}
+	for _, v := range b {
+		if !seen[v] {
+			return false
+		}
+	}
+	return true
+}

@@ -36,17 +36,18 @@ type slackNotificationProduct struct {
 	responseKey string
 	label       string
 	filters     []slackNotificationFilter
+	// Whether the product filters on `events`, merge queue events each
+	// narrowed to some of its outcomes, rather than on a list of strings.
+	eventsWithOutcomes bool
 }
 
 var (
 	slackMergeQueueNotification = slackNotificationProduct{
-		typeSuffix:  "_slack_merge_queue_notification",
-		apiName:     "merge_queue_notification",
-		responseKey: "merge_queue_configs",
-		label:       "merge queue",
-		filters: []slackNotificationFilter{
-			{"event_types", "Merge queue events posted to the channel (e.g. `action.queue.merged`, `queue.pause.create`). Empty means every event."},
-		},
+		typeSuffix:         "_slack_merge_queue_notification",
+		apiName:            "merge_queue_notification",
+		responseKey:        "merge_queue_configs",
+		label:              "merge queue",
+		eventsWithOutcomes: true,
 	}
 	slackCIInsightsNotification = slackNotificationProduct{
 		typeSuffix:  "_slack_ci_insights_notification",
@@ -70,6 +71,17 @@ var (
 		},
 	}
 )
+
+// mergeQueueEventModel is an element of the `events` attribute.
+type mergeQueueEventModel struct {
+	Type     types.String `tfsdk:"type"`
+	Outcomes types.Set    `tfsdk:"outcomes"`
+}
+
+var mergeQueueEventType = types.ObjectType{AttrTypes: map[string]attr.Type{
+	"type":     types.StringType,
+	"outcomes": types.SetType{ElemType: types.StringType},
+}}
 
 type SlackNotificationResource struct {
 	client  *Client
@@ -102,6 +114,24 @@ func emptyStringSetAttribute(description string) schema.SetAttribute {
 	}
 }
 
+func mergeQueueEventsAttribute() schema.SetNestedAttribute {
+	return schema.SetNestedAttribute{
+		Optional:    true,
+		Computed:    true,
+		Default:     setdefault.StaticValue(types.SetValueMust(mergeQueueEventType, []attr.Value{})),
+		Description: "Merge queue events posted to the channel, each with the outcomes it posts. Empty means every event.",
+		NestedObject: schema.NestedAttributeObject{
+			Attributes: map[string]schema.Attribute{
+				"type": schema.StringAttribute{
+					Required:    true,
+					Description: "Merge queue event (e.g. `action.queue.leave`, `queue.pause.create`).",
+				},
+				"outcomes": emptyStringSetAttribute("Outcomes of the event that are posted, among those it can have (e.g. `failure` for `action.queue.leave`: the pull request left the queue without being merged). Empty means every outcome."),
+			},
+		},
+	}
+}
+
 func (r *SlackNotificationResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	attributes := map[string]schema.Attribute{
 		"id": schema.StringAttribute{
@@ -129,6 +159,9 @@ func (r *SlackNotificationResource) Schema(_ context.Context, _ resource.SchemaR
 	}
 	for _, f := range r.product.filters {
 		attributes[f.name] = emptyStringSetAttribute(f.description)
+	}
+	if r.product.eventsWithOutcomes {
+		attributes["events"] = mergeQueueEventsAttribute()
 	}
 	resp.Schema = schema.Schema{
 		Description: fmt.Sprintf("Post %s notifications to a Slack channel connected to a Mergify organization. Every filter left empty means no filtering on it.", r.product.label),
@@ -172,7 +205,60 @@ func (r *SlackNotificationResource) body(ctx context.Context, src attributeGette
 		diags.Append(src.GetAttribute(ctx, path.Root(name), &set)...)
 		body[name] = orEmpty(setToStrings(ctx, set, diags))
 	}
+	if r.product.eventsWithOutcomes {
+		body["events"] = mergeQueueEventsBody(ctx, src, diags)
+	}
 	return body
+}
+
+func mergeQueueEventsModels(ctx context.Context, set types.Set, diags *diag.Diagnostics) []mergeQueueEventModel {
+	var models []mergeQueueEventModel
+	if !set.IsNull() && !set.IsUnknown() {
+		diags.Append(set.ElementsAs(ctx, &models, false)...)
+	}
+	return models
+}
+
+func mergeQueueEventsBody(ctx context.Context, src attributeGetter, diags *diag.Diagnostics) []SlackNotificationEvent {
+	var set types.Set
+	diags.Append(src.GetAttribute(ctx, path.Root("events"), &set)...)
+	events := []SlackNotificationEvent{}
+	for _, m := range mergeQueueEventsModels(ctx, set, diags) {
+		events = append(events, SlackNotificationEvent{
+			Type:     m.Type.ValueString(),
+			Outcomes: orEmpty(setToStrings(ctx, m.Outcomes, diags)),
+		})
+	}
+	return events
+}
+
+// mergeQueueEventsState returns the events the API answered with. The API
+// spells out every outcome of an event that posts them all, so such an event
+// keeps the outcomes of prior when those also mean every outcome, listed or
+// empty, and is empty otherwise.
+func mergeQueueEventsState(ctx context.Context, prior types.Set, got []SlackNotificationEvent, possibleOutcomes map[string][]string, diags *diag.Diagnostics) types.Set {
+	priorOutcomes := map[string]types.Set{}
+	for _, m := range mergeQueueEventsModels(ctx, prior, diags) {
+		priorOutcomes[m.Type.ValueString()] = m.Outcomes
+	}
+
+	models := make([]mergeQueueEventModel, 0, len(got))
+	for _, event := range got {
+		outcomes, d := types.SetValueFrom(ctx, types.StringType, unique(event.Outcomes))
+		diags.Append(d...)
+		if sameElements(event.Outcomes, possibleOutcomes[event.Type]) {
+			outcomes = types.SetValueMust(types.StringType, []attr.Value{})
+			if p, ok := priorOutcomes[event.Type]; ok {
+				if values := setToStrings(ctx, p, diags); len(values) == 0 || sameElements(values, possibleOutcomes[event.Type]) {
+					outcomes = p
+				}
+			}
+		}
+		models = append(models, mergeQueueEventModel{Type: types.StringValue(event.Type), Outcomes: outcomes})
+	}
+	set, d := types.SetValueFrom(ctx, mergeQueueEventType, models)
+	diags.Append(d...)
+	return set
 }
 
 func (r *SlackNotificationResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -208,7 +294,7 @@ func (r *SlackNotificationResource) Read(ctx context.Context, req resource.ReadR
 		return
 	}
 
-	channels, err := r.client.ListSlackChannels(ctx, owner)
+	configuration, err := r.client.GetSlackConfiguration(ctx, owner)
 	if IsNotFound(err) {
 		// The organization is gone or Mergify is uninstalled from it.
 		resp.State.RemoveResource(ctx)
@@ -219,12 +305,12 @@ func (r *SlackNotificationResource) Read(ctx context.Context, req resource.ReadR
 		return
 	}
 	var notification *SlackNotification
-	for i := range channels {
+	for i := range configuration.Channels {
 		// UUIDs: the API answers in lowercase whatever spelling it was given.
-		if !strings.EqualFold(channels[i].ID, channelID) {
+		if !strings.EqualFold(configuration.Channels[i].ID, channelID) {
 			continue
 		}
-		notification, err = channels[i].Notification(r.product.responseKey, id)
+		notification, err = configuration.Channels[i].Notification(r.product.responseKey, id)
 		if err != nil {
 			resp.Diagnostics.AddError("Mergify API error reading Slack notification configuration", err.Error())
 			return
@@ -247,6 +333,12 @@ func (r *SlackNotificationResource) Read(ctx context.Context, req resource.ReadR
 		set, diags := types.SetValueFrom(ctx, types.StringType, unique(v))
 		resp.Diagnostics.Append(diags...)
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root(name), set)...)
+	}
+	if r.product.eventsWithOutcomes {
+		var priorEvents types.Set
+		resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root("events"), &priorEvents)...)
+		events := mergeQueueEventsState(ctx, priorEvents, notification.Events, configuration.MergeQueueEventPossibleOutcomes, &resp.Diagnostics)
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("events"), events)...)
 	}
 }
 
