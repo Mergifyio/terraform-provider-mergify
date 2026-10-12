@@ -1,1 +1,6 @@
-Rebased on the new Mergify configuration commit; content unchanged.
+Revision history for #14:
+
+rev 2 (rebase) 2026-10-12 08:06 UTC — Rebased on the new Mergify configuration commit; content unchanged.
+rev 1 (initial) 2026-10-12 08:06 UTC
+
+<!-- mergify-revision-data: {"schema_version":1,"pull_number":14,"entries":[{"number":1,"change_type":"initial","old_sha":null,"new_sha":"31a7eec86abd05a2c735db1ba50b648358093101","timestamp_iso":"2026-10-12T08:06:02Z","reason":"","replay_sha":null,"compare_url":null},{"number":2,"change_type":"rebase","old_sha":"31a7eec86abd05a2c735db1ba50b648358093101","new_sha":"f0201b89266f5203df2bb3415883cd5783565210","timestamp_iso":"2026-10-12T08:06:02Z","reason":"Rebased on the new Mergify configuration commit; content unchanged.","replay_sha":null,"compare_url":"https://github.com/Mergifyio/terraform-provider-mergify/compare/31a7eec86abd05a2c735db1ba50b648358093101...f0201b89266f5203df2bb3415883cd5783565210"}]} -->
