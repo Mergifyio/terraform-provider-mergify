@@ -29,7 +29,12 @@ resource "mergify_slack_merge_queue_notification" "example" {
   owner        = "Mergifyio"
   channel_id   = data.mergify_slack_channel.merge_queue.id
   repositories = ["monorepo"]
-  event_types  = ["action.queue.merged", "queue.pause.create", "queue.pause.delete"]
+  events = [
+    # Only the pull requests that left the queue without being merged.
+    { type = "action.queue.leave", outcomes = ["failure"] },
+    { type = "queue.pause.create" },
+    { type = "queue.pause.delete" },
+  ]
 }
 ```
 
@@ -47,17 +52,38 @@ resource "mergify_slack_merge_queue_notification" "example" {
 
 - `repositories` (Set of String) Names of the organization's repositories
   to notify about. Empty or omitted means every repository.
-- `event_types` (Set of String) Merge queue events posted to the channel.
-  Empty or omitted means every event. The events that are posted are
-  `action.queue.enter`, `action.queue.checks_start`,
-  `action.queue.checks_end`, `action.queue.leave`, `action.queue.merged`,
-  `queue.pause.create`, `queue.pause.update`, `queue.pause.delete`,
-  `scheduled_freeze.create`, `scheduled_freeze.update` and
-  `scheduled_freeze.delete`.
+- `events` (Attributes Set) Merge queue events posted to the channel, each
+  with the outcomes it posts. Empty or omitted means every event. The
+  events that are posted are `action.queue.enter`,
+  `action.queue.checks_start`, `action.queue.checks_end`,
+  `action.queue.leave`, `action.queue.merged`, `queue.pause.create`,
+  `queue.pause.update`, `queue.pause.delete`, `scheduled_freeze.create`,
+  `scheduled_freeze.update` and `scheduled_freeze.delete`. See the nested
+  schema below.
 
 ### Read-Only
 
 - `id` (String) ID of the notification configuration.
+
+### Nested Schema for `events`
+
+Required:
+
+- `type` (String) Merge queue event.
+
+Optional:
+
+- `outcomes` (Set of String) Outcomes of the event that are posted. Empty
+  or omitted means every outcome. Two events have several:
+  - `action.queue.leave`: `success` when the queue merged the pull
+    request, `neutral` when it was merged outside the queue, `failure`
+    when it left the queue without being merged.
+  - `action.queue.checks_end`: `failure` when the checks failed,
+    `pending` when they passed and the pull request waits to be merged.
+
+  Every other event has one: `pending` for `action.queue.enter` and
+  `action.queue.checks_start`, `success` for `action.queue.merged`, and
+  `neutral` for the pause and freeze events.
 
 ## Import
 
