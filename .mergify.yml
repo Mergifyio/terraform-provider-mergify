@@ -1,0 +1,72 @@
+extends: .github
+shared:
+  DefaultQueueOptions: &DefaultQueueOptions
+    commit_message_format:
+      title: pr-title
+      body: pr-body
+    merge_method: squash
+  CheckRuns: &CheckRuns
+    - check-success = test
+  DefaultReviewCond: &DefaultReviewCond
+    - "#approved-reviews-by >= 1"
+    - author = dependabot[bot]
+    - author = renovate[bot]
+    - author = mergify-ci-bot
+
+queue_rules:
+  - name: automated updates
+    <<: *DefaultQueueOptions
+    queue_conditions:
+      - base = main
+      - or:
+          - author = mergify-ci-bot
+          - author = dependabot[bot]
+          - author = renovate[bot]
+    merge_method: fast-forward
+    merge_conditions:
+      - and: *CheckRuns
+    batch_size: 7
+    batch_max_wait_time: 5min
+
+  - name: default
+    <<: *DefaultQueueOptions
+    queue_conditions:
+      - base = main
+    merge_conditions:
+      - and: *CheckRuns
+
+pull_request_rules:
+  - name: request review
+    conditions:
+      - -author=dependabot[bot]
+      - -author=renovate[bot]
+      - -author=mergify-ci-bot
+      - -merged
+      - -closed
+      - and: *CheckRuns
+      - "#changes-requested-reviews-by=0"
+      - review-requested!=@devs
+      - not:
+          or: *DefaultReviewCond
+    actions:
+      request_reviews:
+        teams:
+          - devs
+
+merge_protections:
+  - name: 🤖 Continuous Integration
+    if: []
+    success_conditions:
+      - and: *CheckRuns
+
+  - name: 👀 Review Requirements
+    if: []
+    success_conditions:
+      - or: *DefaultReviewCond
+
+merge_queue:
+  max_parallel_checks: 5
+
+merge_protections_settings:
+  reporting_method: deployments
+  auto_merge_conditions: true
