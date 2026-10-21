@@ -44,6 +44,19 @@ func IsNotFound(err error) bool {
 	return errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound
 }
 
+// HasErrorCode tells whether err is an API error answered with this
+// `error_code`, for a status the API answers for several reasons.
+func HasErrorCode(err error, code string) bool {
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		return false
+	}
+	var body struct {
+		ErrorCode string `json:"error_code"`
+	}
+	return json.Unmarshal([]byte(apiErr.Body), &body) == nil && body.ErrorCode == code
+}
+
 func (c *Client) do(ctx context.Context, method, path string, body, out any) error {
 	var bodyReader io.Reader
 	if body != nil {
@@ -274,4 +287,83 @@ func (c *Client) UpdateSlackNotification(ctx context.Context, owner, channelID, 
 
 func (c *Client) DeleteSlackNotification(ctx context.Context, owner, channelID, product, id string) error {
 	return c.do(ctx, http.MethodDelete, slackPath(owner, channelID, product, id), nil, nil)
+}
+
+// PipelineDefinition is a Job Engine pipeline as the API takes it. The
+// `mergify_pipeline` attributes mirror it field for field, hence the `tfsdk`
+// tags. An optional field is a nil pointer, slice or map when absent: the API
+// reads an absent field differently from an empty one.
+type PipelineDefinition struct {
+	Name       string             `json:"name" tfsdk:"name"`
+	Triggers   []PipelineTrigger  `json:"triggers" tfsdk:"triggers"`
+	InitialJob PipelineInitialJob `json:"initial_job" tfsdk:"initial_job"`
+	Vault      *PipelineVault     `json:"vault" tfsdk:"vault"`
+}
+
+type PipelineTrigger struct {
+	Context  string   `json:"context" tfsdk:"context"`
+	Branches []string `json:"branches,omitzero" tfsdk:"branches"`
+	Queues   []string `json:"queues,omitzero" tfsdk:"queues"`
+}
+
+type PipelineInitialJob struct {
+	Image   string                    `json:"image" tfsdk:"image"`
+	Args    []string                  `json:"args,omitzero" tfsdk:"args"`
+	RunsOn  *string                   `json:"runs_on,omitzero" tfsdk:"runs_on"`
+	Secrets map[string]PipelineSecret `json:"secrets,omitzero" tfsdk:"secrets"`
+}
+
+type PipelineSecret struct {
+	Path  string  `json:"path" tfsdk:"path"`
+	Field string  `json:"field" tfsdk:"field"`
+	Role  *string `json:"role,omitzero" tfsdk:"role"`
+	Env   *bool   `json:"env,omitzero" tfsdk:"env"`
+}
+
+type PipelineVault struct {
+	Address       string  `json:"address" tfsdk:"address"`
+	Audience      string  `json:"audience" tfsdk:"audience"`
+	AuthMount     *string `json:"auth_mount,omitzero" tfsdk:"auth_mount"`
+	Namespace     *string `json:"namespace,omitzero" tfsdk:"namespace"`
+	CACertificate *string `json:"ca_certificate,omitzero" tfsdk:"ca_certificate"`
+	DefaultRole   *string `json:"default_role,omitzero" tfsdk:"default_role"`
+}
+
+type Pipeline struct {
+	ID int64 `json:"id"`
+	PipelineDefinition
+}
+
+func pipelinesPath(owner, repository string, segments ...string) string {
+	path := "/repos/" + url.PathEscape(owner) + "/" + url.PathEscape(repository) + "/pipelines"
+	for _, s := range segments {
+		path += "/" + url.PathEscape(s)
+	}
+	return path
+}
+
+func (c *Client) GetPipeline(ctx context.Context, owner, repository, id string) (*Pipeline, error) {
+	var resp Pipeline
+	if err := c.do(ctx, http.MethodGet, pipelinesPath(owner, repository, id), nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+func (c *Client) CreatePipeline(ctx context.Context, owner, repository string, definition PipelineDefinition) (*Pipeline, error) {
+	var resp Pipeline
+	if err := c.do(ctx, http.MethodPost, pipelinesPath(owner, repository), definition, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// UpdatePipeline replaces the whole definition: a field it leaves out takes
+// the API's default.
+func (c *Client) UpdatePipeline(ctx context.Context, owner, repository, id string, definition PipelineDefinition) error {
+	return c.do(ctx, http.MethodPut, pipelinesPath(owner, repository, id), definition, nil)
+}
+
+func (c *Client) DeletePipeline(ctx context.Context, owner, repository, id string) error {
+	return c.do(ctx, http.MethodDelete, pipelinesPath(owner, repository, id), nil, nil)
 }
