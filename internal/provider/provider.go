@@ -45,7 +45,7 @@ func (p *MergifyProvider) Schema(_ context.Context, _ provider.SchemaRequest, re
 			"token": schema.StringAttribute{
 				Optional:    true,
 				Sensitive:   true,
-				Description: "Mergify API bearer token. May also be set via the `MERGIFY_TOKEN` environment variable. As a fallback the `GITHUB_TOKEN` environment variable is used (the Mergify API also accepts GitHub personal access tokens).",
+				Description: "Mergify API bearer token. May also be set via the `MERGIFY_TOKEN` environment variable.",
 			},
 		},
 	}
@@ -67,17 +67,18 @@ func (p *MergifyProvider) Configure(ctx context.Context, req provider.ConfigureR
 	}
 
 	token := os.Getenv("MERGIFY_TOKEN")
-	if token == "" {
-		token = os.Getenv("GITHUB_TOKEN")
-	}
 	if !data.Token.IsNull() {
 		token = data.Token.ValueString()
 	}
 	if token == "" {
+		detail := "Set the `token` provider attribute, or the MERGIFY_TOKEN environment variable, to a Mergify application key with the admin scope, created from the Mergify dashboard."
+		if os.Getenv("GITHUB_TOKEN") != "" {
+			detail += " The GITHUB_TOKEN environment variable is no longer used."
+		}
 		resp.Diagnostics.AddAttributeError(
 			path.Root("token"),
 			"Missing Mergify API token",
-			"Set the `token` provider attribute, or the MERGIFY_TOKEN or GITHUB_TOKEN environment variable.",
+			detail,
 		)
 		return
 	}

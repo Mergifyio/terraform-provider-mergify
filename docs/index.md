@@ -22,7 +22,7 @@ terraform {
 }
 
 provider "mergify" {
-  # token reads from MERGIFY_TOKEN, falling back to GITHUB_TOKEN
+  # token reads from the MERGIFY_TOKEN environment variable
 }
 
 resource "mergify_repository_products" "monorepo" {
@@ -34,18 +34,16 @@ resource "mergify_repository_products" "monorepo" {
 
 ## Authentication
 
-The provider authenticates against the Mergify API with a bearer token.
-The token can be either:
-
-- a Mergify application key (created from the Mergify dashboard), or
-- a GitHub personal access token (the Mergify API also accepts GitHub
-  PATs — see the [API authentication docs][auth]).
+The provider authenticates against the Mergify API with a Mergify
+application key with the admin scope (created from the Mergify dashboard, see the
+[API authentication docs][auth]).
 
 Token resolution order, highest to lowest priority:
 
 1. The `token` attribute on the `provider` block
 2. The `MERGIFY_TOKEN` environment variable
-3. The `GITHUB_TOKEN` environment variable
+
+The `GITHUB_TOKEN` environment variable is not used.
 
 [auth]: https://docs.mergify.com/api/usage
 
@@ -57,5 +55,4 @@ Token resolution order, highest to lowest priority:
   `https://api.mergify.com/v1`. May also be set via the
   `MERGIFY_ENDPOINT` environment variable.
 - `token` (String, Sensitive) Mergify API bearer token. May also be set
-  via the `MERGIFY_TOKEN` environment variable. As a fallback the
-  `GITHUB_TOKEN` environment variable is used.
+  via the `MERGIFY_TOKEN` environment variable.
