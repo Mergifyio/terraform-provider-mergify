@@ -275,3 +275,92 @@ func (c *Client) UpdateSlackNotification(ctx context.Context, owner, channelID, 
 func (c *Client) DeleteSlackNotification(ctx context.Context, owner, channelID, product, id string) error {
 	return c.do(ctx, http.MethodDelete, slackPath(owner, channelID, product, id), nil, nil)
 }
+
+// APIErrorCode returns the `error_code` and `detail` of a Mergify API error
+// body, empty when err is not an API error or its body carries neither.
+func APIErrorCode(err error) (code, detail string) {
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		return "", ""
+	}
+	var body struct {
+		ErrorCode string `json:"error_code"`
+		Detail    string `json:"detail"`
+	}
+	if json.Unmarshal([]byte(apiErr.Body), &body) != nil {
+		return "", ""
+	}
+	return body.ErrorCode, body.Detail
+}
+
+// MergeQueueSettings is what one level sets of the merge queue settings: a
+// nil value is unset and comes from the level above.
+type MergeQueueSettings struct {
+	BatchPullRequest *bool `json:"batch_pull_request"`
+}
+
+// MergeQueueSettingsLevel names the organization, the repository, or the
+// base branch name or pattern whose merge queue settings are read or written:
+// Repository is empty for the organization, Branch for the repository.
+type MergeQueueSettingsLevel struct {
+	Owner      string
+	Repository string
+	Branch     string
+}
+
+func (l MergeQueueSettingsLevel) path() string {
+	if l.Repository == "" {
+		return "/orgs/" + url.PathEscape(l.Owner) + "/merge-queue/settings"
+	}
+	path := "/repos/" + url.PathEscape(l.Owner) + "/" + url.PathEscape(l.Repository) + "/merge-queue/settings"
+	if l.Branch != "" {
+		// Escaped so that a slash in a branch name or pattern, such as
+		// `release/*`, stays in the one path segment.
+		path += "/branches/" + url.PathEscape(l.Branch)
+	}
+	return path
+}
+
+func (c *Client) GetMergeQueueSettings(ctx context.Context, level MergeQueueSettingsLevel) (*MergeQueueSettings, error) {
+	var resp MergeQueueSettings
+	if err := c.do(ctx, http.MethodGet, level.path(), nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// PutMergeQueueSettings replaces what the level sets: a nil value unsets it.
+func (c *Client) PutMergeQueueSettings(ctx context.Context, level MergeQueueSettingsLevel, settings MergeQueueSettings) error {
+	return c.do(ctx, http.MethodPut, level.path(), settings, nil)
+}
+
+// DeleteMergeQueueSettings unsets every merge queue setting of the level.
+func (c *Client) DeleteMergeQueueSettings(ctx context.Context, level MergeQueueSettingsLevel) error {
+	return c.do(ctx, http.MethodDelete, level.path(), nil, nil)
+}
+
+type MergeQueueSettingSource struct {
+	Level  string  `json:"level"`
+	Branch *string `json:"branch"`
+}
+
+// EffectiveMergeQueueSettings is what the merge queue of a base branch uses,
+// with the level each value comes from.
+type EffectiveMergeQueueSettings struct {
+	Branch   string `json:"branch"`
+	Settings struct {
+		BatchPullRequest bool `json:"batch_pull_request"`
+	} `json:"settings"`
+	Sources struct {
+		BatchPullRequest MergeQueueSettingSource `json:"batch_pull_request"`
+	} `json:"sources"`
+}
+
+func (c *Client) GetEffectiveMergeQueueSettings(ctx context.Context, owner, repository, branch string) (*EffectiveMergeQueueSettings, error) {
+	var resp EffectiveMergeQueueSettings
+	path := "/repos/" + url.PathEscape(owner) + "/" + url.PathEscape(repository) + "/branches/" + url.PathEscape(branch) + "/merge-queue/settings"
+	if err := c.do(ctx, http.MethodGet, path, nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
