@@ -95,11 +95,15 @@ func (p *MergifyProvider) Resources(_ context.Context) []func() resource.Resourc
 		NewSlackMergeQueueNotificationResource,
 		NewSlackCIInsightsNotificationResource,
 		NewSlackTestQuarantineNotificationResource,
+		NewOrganizationMergeQueueSettingsResource,
+		NewRepositoryMergeQueueSettingsResource,
+		NewBranchMergeQueueSettingsResource,
 	}
 }
 
 func (p *MergifyProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		NewSlackChannelDataSource,
+		NewEffectiveMergeQueueSettingsDataSource,
 	}
 }
