@@ -12,6 +12,9 @@ import (
 	"strings"
 )
 
+// The Mergify API version this provider release is built against.
+const apiVersion = "2026-11-16"
+
 type Client struct {
 	endpoint  string
 	token     string
@@ -61,6 +64,7 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 	req.Header.Set("Authorization", "Bearer "+c.token)
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", c.userAgent)
+	req.Header.Set("Mergify-Version", apiVersion)
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
