@@ -17,6 +17,11 @@ hold several configurations of the same product.
 Every filter is **declarative** and an empty filter does not filter:
 omitting all of them posts every notification of every repository.
 
+## Application key permissions
+
+The application key needs Slack at Read & write (`slack: write` in the
+[API Reference][api-reference]).
+
 ## Example Usage
 
 ```terraform
@@ -64,3 +69,5 @@ An existing configuration can be imported using
 ```shell
 terraform import mergify_slack_test_quarantine_notification.example Mergifyio/<channel_id>/<id>
 ```
+
+[api-reference]: https://docs.mergify.com/api

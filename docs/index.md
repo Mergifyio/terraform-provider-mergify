@@ -35,7 +35,7 @@ resource "mergify_repository_products" "monorepo" {
 ## Authentication
 
 The provider authenticates against the Mergify API with a Mergify
-application key with the admin scope (created from the Mergify dashboard, see the
+application key, created from the Mergify dashboard (see the
 [API authentication docs][auth]).
 
 Token resolution order, highest to lowest priority:
@@ -45,7 +45,36 @@ Token resolution order, highest to lowest priority:
 
 The `GITHUB_TOKEN` environment variable is not used.
 
+### Application key permissions
+
+A key holds a level on each resource of the Mergify API, from No access to
+Read & write (see [Application key permissions][permissions]). Grant it
+what the resources and data sources you use need:
+
+| Resource or data source | Permissions |
+| --- | --- |
+| `mergify_organization_default_products` | Products: Read & write |
+| `mergify_repository_products` | Products: Read & write, Repositories: Read |
+| `mergify_slack_ci_insights_notification` | Slack: Read & write |
+| `mergify_slack_merge_queue_notification` | Slack: Read & write |
+| `mergify_slack_test_quarantine_notification` | Slack: Read & write |
+| `mergify_slack_channel` (data source) | Slack: Read |
+
+A key granted **Every resource** at Read & write holds all of these, and so
+does an `admin` key created before permissions existed. On a Mergify
+installation that still offers only admin and CI keys, use an admin key.
+
+A CI key, granted only CI Reporting, is refused on every resource of this
+provider: when Terraform runs in a CI job, make sure `MERGIFY_TOKEN` is not
+the job's CI key.
+
+A key that lacks a permission gets `403` with the error code
+`APPLICATION_KEY_REFUSED`. The API gives the same answer when `owner` is
+not the key's organization or the repository does not exist, so check
+those names too.
+
 [auth]: https://docs.mergify.com/api/usage
+[permissions]: https://docs.mergify.com/api/usage#application-key-permissions
 
 ## Schema
 

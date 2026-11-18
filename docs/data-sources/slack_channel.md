@@ -14,9 +14,11 @@ resources.
 Channels are connected from the Mergify dashboard, through Slack's
 authorization flow. Terraform cannot connect or disconnect one.
 
-Reading channels and managing their notifications requires a token with
-the integrations admin role on the organization, such as an admin
-application key.
+## Application key permissions
+
+The application key needs Slack at Read (`slack: read` in the
+[API Reference][api-reference]). The `mergify_slack_*_notification`
+resources need Slack at Read & write, which includes it.
 
 ## Example Usage
 
@@ -50,3 +52,5 @@ data "mergify_slack_channel" "merge_queue" {
   while the channel receives notifications.
 - `disabled_reason` (String) Why Mergify cannot post to the channel
   anymore. Null while the channel receives notifications.
+
+[api-reference]: https://docs.mergify.com/api
