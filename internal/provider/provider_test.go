@@ -33,7 +33,7 @@ func TestProviderIgnoresGitHubToken(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config:      providerConfigWithoutToken(srv) + slackChannelLookup,
-				ExpectError: regexp.MustCompile(`(?s)Missing Mergify API token.*GITHUB_TOKEN environment variable is no\s+longer used`),
+				ExpectError: regexp.MustCompile(`(?s)Missing Mergify API token.*GITHUB_TOKEN\s+environment\s+variable\s+is\s+no\s+longer\s+used`),
 			},
 		},
 	})

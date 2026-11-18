@@ -71,7 +71,7 @@ func (p *MergifyProvider) Configure(ctx context.Context, req provider.ConfigureR
 		token = data.Token.ValueString()
 	}
 	if token == "" {
-		detail := "Set the `token` provider attribute, or the MERGIFY_TOKEN environment variable, to a Mergify application key with the admin scope, created from the Mergify dashboard."
+		detail := "Set the `token` provider attribute, or the MERGIFY_TOKEN environment variable, to a Mergify application key created from the Mergify dashboard, granted the permissions the resources you use need: https://registry.terraform.io/providers/Mergifyio/mergify/latest/docs"
 		if os.Getenv("GITHUB_TOKEN") != "" {
 			detail += " The GITHUB_TOKEN environment variable is no longer used."
 		}

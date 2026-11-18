@@ -13,6 +13,13 @@ The `products` attribute is **declarative**: applying the resource sets
 the exact set of enabled products on the repository, removing any that
 are not listed.
 
+## Application key permissions
+
+The application key needs Products at Read & write (`products: write` in
+the [API Reference][api-reference]) to set the products, and Repositories
+at Read (`repositories: read`) to read them back from the organization's
+list of repositories.
+
 ## Example Usage
 
 ```terraform
@@ -47,3 +54,5 @@ Existing repository product enablement can be imported using
 ```shell
 terraform import mergify_repository_products.example Mergifyio/monorepo
 ```
+
+[api-reference]: https://docs.mergify.com/api

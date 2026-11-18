@@ -38,13 +38,16 @@ resource "mergify_repository_products" "monorepo" {
 
 ## Authentication
 
-Provide a Mergify application key with the admin scope (see [Mergify API auth][auth]) via, in
-priority order:
+Provide a Mergify application key (see [Mergify API auth][auth]) via, in priority order:
 
 1. The `token` provider attribute
 2. The `MERGIFY_TOKEN` environment variable
 
 The `GITHUB_TOKEN` environment variable is not used.
+
+The key needs the permissions of the resources and data sources you use, listed in
+[docs/index.md](docs/index.md#application-key-permissions) and on each resource's page. A key
+granted **Every resource** at Read & write holds them all.
 
 [auth]: https://docs.mergify.com/api/usage
 
