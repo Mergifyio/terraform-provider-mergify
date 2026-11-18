@@ -13,6 +13,11 @@ Mergify discovers a repository for the first time; existing
 repositories' product enablement is managed separately via
 [`mergify_repository_products`](repository_products.md).
 
+## Application key permissions
+
+The application key needs Products at Read & write (`products: write` in
+the [API Reference][api-reference]).
+
 ## Example Usage
 
 ```terraform
@@ -44,3 +49,5 @@ organization name:
 ```shell
 terraform import mergify_organization_default_products.example Mergifyio
 ```
+
+[api-reference]: https://docs.mergify.com/api
