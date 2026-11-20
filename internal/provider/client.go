@@ -275,3 +275,139 @@ func (c *Client) UpdateSlackNotification(ctx context.Context, owner, channelID, 
 func (c *Client) DeleteSlackNotification(ctx context.Context, owner, channelID, product, id string) error {
 	return c.do(ctx, http.MethodDelete, slackPath(owner, channelID, product, id), nil, nil)
 }
+
+// APIErrorCode returns the `error_code` and `detail` of a Mergify API error
+// body, empty when err is not an API error or its body carries neither.
+func APIErrorCode(err error) (code, detail string) {
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		return "", ""
+	}
+	var body struct {
+		ErrorCode string `json:"error_code"`
+		Detail    string `json:"detail"`
+	}
+	if json.Unmarshal([]byte(apiErr.Body), &body) != nil {
+		return "", ""
+	}
+	return body.ErrorCode, body.Detail
+}
+
+// MergeQueuePolicySettings is what a merge queue policy sets: a nil value is
+// a setting the policy leaves alone.
+type MergeQueuePolicySettings struct {
+	BatchPullRequest *bool `json:"batch_pull_request,omitempty"`
+}
+
+// MergeQueuePolicyPatterns is the names or glob patterns a policy's target
+// includes, and those it excludes.
+type MergeQueuePolicyPatterns struct {
+	IncludePatterns []string `json:"include_patterns"`
+	ExcludePatterns []string `json:"exclude_patterns"`
+}
+
+// MergeQueuePolicyTarget is what a policy applies to. Repositories is nil
+// for a repository's policy, which applies to its own repository.
+type MergeQueuePolicyTarget struct {
+	Repositories *MergeQueuePolicyPatterns `json:"repositories,omitempty"`
+	Branches     MergeQueuePolicyPatterns  `json:"branches"`
+}
+
+type MergeQueuePolicy struct {
+	ID          string                   `json:"id,omitempty"`
+	Name        string                   `json:"name"`
+	Enforcement string                   `json:"enforcement"`
+	Repository  *string                  `json:"repository,omitempty"`
+	Target      MergeQueuePolicyTarget   `json:"target"`
+	Settings    MergeQueuePolicySettings `json:"settings"`
+}
+
+// mergeQueuePolicyPatch is the body of a PATCH, which sends every field so
+// that it replaces the policy: a setting sent as `null` is no longer set by
+// it, where a POST leaves it out.
+type mergeQueuePolicyPatch struct {
+	Name        string                 `json:"name"`
+	Enforcement string                 `json:"enforcement"`
+	Target      MergeQueuePolicyTarget `json:"target"`
+	Settings    struct {
+		BatchPullRequest *bool `json:"batch_pull_request"`
+	} `json:"settings"`
+}
+
+// MergeQueuePolicyScope names the organization, or the repository, holding
+// merge queue policies: Repository is empty for the organization.
+type MergeQueuePolicyScope struct {
+	Owner      string
+	Repository string
+}
+
+func (s MergeQueuePolicyScope) path(policyID string) string {
+	path := "/orgs/" + url.PathEscape(s.Owner)
+	if s.Repository != "" {
+		path += "/repositories/" + url.PathEscape(s.Repository)
+	}
+	path += "/merge-queue/policies"
+	if policyID != "" {
+		path += "/" + url.PathEscape(policyID)
+	}
+	return path
+}
+
+func (c *Client) CreateMergeQueuePolicy(ctx context.Context, scope MergeQueuePolicyScope, policy MergeQueuePolicy) (*MergeQueuePolicy, error) {
+	var resp MergeQueuePolicy
+	if err := c.do(ctx, http.MethodPost, scope.path(""), policy, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+func (c *Client) GetMergeQueuePolicy(ctx context.Context, scope MergeQueuePolicyScope, policyID string) (*MergeQueuePolicy, error) {
+	var resp MergeQueuePolicy
+	if err := c.do(ctx, http.MethodGet, scope.path(policyID), nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// UpdateMergeQueuePolicy replaces every field of the policy with policy's.
+func (c *Client) UpdateMergeQueuePolicy(ctx context.Context, scope MergeQueuePolicyScope, policyID string, policy MergeQueuePolicy) (*MergeQueuePolicy, error) {
+	patch := mergeQueuePolicyPatch{Name: policy.Name, Enforcement: policy.Enforcement, Target: policy.Target}
+	patch.Settings.BatchPullRequest = policy.Settings.BatchPullRequest
+	var resp MergeQueuePolicy
+	if err := c.do(ctx, http.MethodPatch, scope.path(policyID), patch, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+func (c *Client) DeleteMergeQueuePolicy(ctx context.Context, scope MergeQueuePolicyScope, policyID string) error {
+	return c.do(ctx, http.MethodDelete, scope.path(policyID), nil, nil)
+}
+
+// MergeQueueSettingDecision is how a setting of a base branch was settled.
+type MergeQueueSettingDecision struct {
+	Rule      string   `json:"rule"`
+	PolicyIDs []string `json:"policy_ids"`
+}
+
+// MergeQueueBranchSettings is what the merge queue of a base branch uses,
+// how each value was settled, and the policies applying to the branch.
+type MergeQueueBranchSettings struct {
+	Branch   string `json:"branch"`
+	Settings struct {
+		BatchPullRequest bool `json:"batch_pull_request"`
+	} `json:"settings"`
+	Decisions struct {
+		BatchPullRequest MergeQueueSettingDecision `json:"batch_pull_request"`
+	} `json:"decisions"`
+	Policies []MergeQueuePolicy `json:"policies"`
+}
+
+func (c *Client) GetMergeQueueBranchSettings(ctx context.Context, owner, repository, branch string) (*MergeQueueBranchSettings, error) {
+	var resp MergeQueueBranchSettings
+	path := "/orgs/" + url.PathEscape(owner) + "/repositories/" + url.PathEscape(repository) + "/merge-queue/branches/" + url.PathEscape(branch) + "/settings"
+	if err := c.do(ctx, http.MethodGet, path, nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
