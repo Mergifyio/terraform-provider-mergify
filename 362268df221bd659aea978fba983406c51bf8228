@@ -1,0 +1,1 @@
+Rewritten on the merge queue policy routes: the three level resources and the effective-settings data source are replaced by mergify_organization_merge_queue_policy, mergify_repository_merge_queue_policy (name, enforcement, target with include_patterns/exclude_patterns, settings) and the mergify_merge_queue_branch_settings data source (settings, decisions, policies).
