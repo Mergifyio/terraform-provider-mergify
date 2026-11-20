@@ -11,6 +11,10 @@ Early development. Currently exposes:
 - `mergify_slack_merge_queue_notification`, `mergify_slack_ci_insights_notification`,
   `mergify_slack_test_quarantine_notification` — post notifications to a Slack channel
   connected from the Mergify dashboard, looked up with the `mergify_slack_channel` data source.
+- `mergify_organization_merge_queue_policy`, `mergify_repository_merge_queue_policy` — manage the
+  merge queue policies of an organization or a repository, which set merge queue settings for the
+  repositories and base branches they target; the `mergify_merge_queue_branch_settings` data source
+  reads what a base branch uses, and which policies decided it.
 
 ## Usage
 
