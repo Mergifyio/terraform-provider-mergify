@@ -1,0 +1,6 @@
+Revision history for #26:
+
+rev 2 (content) 2026-11-24 18:14 UTC
+rev 1 (initial) 2026-11-24 18:14 UTC
+
+<!-- mergify-revision-data: {"schema_version":1,"pull_number":26,"entries":[{"number":1,"change_type":"initial","old_sha":null,"new_sha":"da22b629119ba8a7b0957e75674fe96ec665eae9","timestamp_iso":"2026-11-24T18:14:04Z","reason":"","replay_sha":null,"compare_url":null},{"number":2,"change_type":"content","old_sha":"da22b629119ba8a7b0957e75674fe96ec665eae9","new_sha":"26e01750f6d0e635200c0fad05f8e72ab0955596","timestamp_iso":"2026-11-24T18:14:04Z","reason":"","replay_sha":null,"compare_url":"https://github.com/Mergifyio/terraform-provider-mergify/compare/da22b629119ba8a7b0957e75674fe96ec665eae9...26e01750f6d0e635200c0fad05f8e72ab0955596"}]} -->
