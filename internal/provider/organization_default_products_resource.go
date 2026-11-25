@@ -79,6 +79,7 @@ func (r *OrganizationDefaultProductsResource) Configure(_ context.Context, req r
 }
 
 func (r *OrganizationDefaultProductsResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	defer r.client.warnOfSunset(&resp.Diagnostics)
 	var plan OrganizationDefaultProductsResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -100,6 +101,7 @@ func (r *OrganizationDefaultProductsResource) Create(ctx context.Context, req re
 }
 
 func (r *OrganizationDefaultProductsResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	defer r.client.warnOfSunset(&resp.Diagnostics)
 	var state OrganizationDefaultProductsResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -127,6 +129,7 @@ func (r *OrganizationDefaultProductsResource) Read(ctx context.Context, req reso
 }
 
 func (r *OrganizationDefaultProductsResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer r.client.warnOfSunset(&resp.Diagnostics)
 	var plan OrganizationDefaultProductsResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -147,6 +150,7 @@ func (r *OrganizationDefaultProductsResource) Update(ctx context.Context, req re
 }
 
 func (r *OrganizationDefaultProductsResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	defer r.client.warnOfSunset(&resp.Diagnostics)
 	var state OrganizationDefaultProductsResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
