@@ -262,6 +262,7 @@ func mergeQueueEventsState(ctx context.Context, prior types.Set, got []SlackNoti
 }
 
 func (r *SlackNotificationResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	defer r.client.warnOfSunset(&resp.Diagnostics)
 	owner := getString(ctx, req.Plan, "owner", &resp.Diagnostics)
 	channelID := getString(ctx, req.Plan, "channel_id", &resp.Diagnostics)
 	body := r.body(ctx, req.Plan, &resp.Diagnostics)
@@ -287,6 +288,7 @@ func (r *SlackNotificationResource) Create(ctx context.Context, req resource.Cre
 }
 
 func (r *SlackNotificationResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	defer r.client.warnOfSunset(&resp.Diagnostics)
 	owner := getString(ctx, req.State, "owner", &resp.Diagnostics)
 	channelID := getString(ctx, req.State, "channel_id", &resp.Diagnostics)
 	id := getString(ctx, req.State, "id", &resp.Diagnostics)
@@ -360,6 +362,7 @@ func keepCasing(prior, got []string) []string {
 }
 
 func (r *SlackNotificationResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer r.client.warnOfSunset(&resp.Diagnostics)
 	owner := getString(ctx, req.Plan, "owner", &resp.Diagnostics)
 	channelID := getString(ctx, req.Plan, "channel_id", &resp.Diagnostics)
 	id := getString(ctx, req.State, "id", &resp.Diagnostics)
@@ -377,6 +380,7 @@ func (r *SlackNotificationResource) Update(ctx context.Context, req resource.Upd
 }
 
 func (r *SlackNotificationResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	defer r.client.warnOfSunset(&resp.Diagnostics)
 	owner := getString(ctx, req.State, "owner", &resp.Diagnostics)
 	channelID := getString(ctx, req.State, "channel_id", &resp.Diagnostics)
 	id := getString(ctx, req.State, "id", &resp.Diagnostics)
