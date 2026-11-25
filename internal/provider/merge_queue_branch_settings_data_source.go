@@ -208,6 +208,7 @@ func appliedPolicyValue(ctx context.Context, policy MergeQueuePolicy, diags *dia
 }
 
 func (d *MergeQueueBranchSettingsDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	defer d.client.warnOfSunset(&resp.Diagnostics)
 	var data MergeQueueBranchSettingsDataSourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {

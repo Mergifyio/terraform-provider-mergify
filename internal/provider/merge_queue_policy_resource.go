@@ -319,6 +319,7 @@ func addMergeQueuePolicyError(diags *diag.Diagnostics, action string, err error)
 }
 
 func (r *MergeQueuePolicyResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	defer r.client.warnOfSunset(&resp.Diagnostics)
 	scope := r.scope(ctx, req.Plan, &resp.Diagnostics)
 	policy := r.policy(ctx, req.Plan, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
@@ -340,6 +341,7 @@ func (r *MergeQueuePolicyResource) Create(ctx context.Context, req resource.Crea
 }
 
 func (r *MergeQueuePolicyResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	defer r.client.warnOfSunset(&resp.Diagnostics)
 	scope := r.scope(ctx, req.State, &resp.Diagnostics)
 	id := getString(ctx, req.State, "id", &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
@@ -360,6 +362,7 @@ func (r *MergeQueuePolicyResource) Read(ctx context.Context, req resource.ReadRe
 }
 
 func (r *MergeQueuePolicyResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer r.client.warnOfSunset(&resp.Diagnostics)
 	scope := r.scope(ctx, req.Plan, &resp.Diagnostics)
 	id := getString(ctx, req.State, "id", &resp.Diagnostics)
 	policy := r.policy(ctx, req.Plan, &resp.Diagnostics)
@@ -378,6 +381,7 @@ func (r *MergeQueuePolicyResource) Update(ctx context.Context, req resource.Upda
 }
 
 func (r *MergeQueuePolicyResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	defer r.client.warnOfSunset(&resp.Diagnostics)
 	scope := r.scope(ctx, req.State, &resp.Diagnostics)
 	id := getString(ctx, req.State, "id", &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
