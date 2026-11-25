@@ -11,7 +11,10 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"sync"
 	"time"
+
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 )
 
 // The Mergify API version this provider release is built against.
@@ -22,6 +25,42 @@ type Client struct {
 	token     string
 	userAgent string
 	http      *http.Client
+	sunset    sunset
+}
+
+// sunset is the date Mergify's answers gave for the end of the API version
+// this release calls, and whether it was warned of.
+type sunset struct {
+	mu     sync.Mutex
+	date   string
+	warned bool
+}
+
+func (s *sunset) note(value string) {
+	if !isDate(value) {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.date == "" {
+		s.date = value
+	}
+}
+
+// warnOfSunset adds the warning that Mergify stops serving the API version
+// this release calls to diags, once per provider process.
+func (c *Client) warnOfSunset(diags *diag.Diagnostics) {
+	c.sunset.mu.Lock()
+	defer c.sunset.mu.Unlock()
+	if c.sunset.date == "" || c.sunset.warned {
+		return
+	}
+	c.sunset.warned = true
+	diags.AddWarning(
+		"Mergify stops serving API version "+apiVersion+" on "+c.sunset.date,
+		"This release of terraform-provider-mergify calls Mergify's API as version "+apiVersion+", which Mergify stops serving on "+c.sunset.date+
+			" (UTC). Upgrade terraform-provider-mergify, whose newer releases call a newer version: "+howToUpgrade,
+	)
 }
 
 func NewClient(endpoint, token, version string) *Client {
@@ -141,6 +180,7 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 		return err
 	}
 	defer resp.Body.Close()
+	c.sunset.note(resp.Header.Get("Mergify-Version-Sunset"))
 
 	respBody, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode >= 400 {
