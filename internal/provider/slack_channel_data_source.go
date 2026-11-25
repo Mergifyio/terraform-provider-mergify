@@ -84,6 +84,7 @@ func (d *SlackChannelDataSource) Configure(_ context.Context, req datasource.Con
 }
 
 func (d *SlackChannelDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	defer d.client.warnOfSunset(&resp.Diagnostics)
 	var data SlackChannelDataSourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {

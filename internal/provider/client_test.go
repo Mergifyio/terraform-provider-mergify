@@ -3,10 +3,16 @@ package provider
 import (
 	"context"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 )
 
 // The steps every message asking to upgrade the provider gives.
@@ -99,4 +105,121 @@ func TestClientKeepsOtherBadRequests(t *testing.T) {
 	if apiErr, ok := err.(*APIError); !ok || !strings.Contains(apiErr.Body, "SOMETHING_ELSE") {
 		t.Fatalf("error: got %#v, want the API's error", err)
 	}
+}
+
+// Every answer served at a version Mergify retires dates its end; a provider
+// process warns of it once.
+func TestClientWarnsOnceOfTheEndOfItsAPIVersion(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		sunsets []string
+		want    diag.Diagnostics
+	}{
+		{
+			name:    "dated",
+			sunsets: []string{"", "not a date", "2099-06-01", "2099-06-01"},
+			want: diag.Diagnostics{diag.NewWarningDiagnostic(
+				"Mergify stops serving API version "+apiVersion+" on 2099-06-01",
+				"This release of terraform-provider-mergify calls Mergify's API as version "+apiVersion+
+					", which Mergify stops serving on 2099-06-01 (UTC). Upgrade terraform-provider-mergify, whose newer releases call a newer version: "+
+					upgradeSteps,
+			)},
+		},
+		{name: "undated", sunsets: []string{"", ""}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			answers := make(chan string, len(tc.sunsets))
+			for _, sunset := range tc.sunsets {
+				answers <- sunset
+			}
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				select {
+				case sunset := <-answers:
+					if sunset != "" {
+						w.Header().Set("Mergify-Version-Sunset", sunset)
+					}
+					writeJSON(w, http.StatusOK, map[string]any{})
+				default:
+					t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+					w.WriteHeader(http.StatusInternalServerError)
+				}
+			}))
+			t.Cleanup(srv.Close)
+			client := NewClient(srv.URL, "test-token", "test")
+
+			var diags diag.Diagnostics
+			for range tc.sunsets {
+				if _, err := client.GetDefaultProducts(context.Background(), "acme"); err != nil {
+					t.Fatal(err)
+				}
+				client.warnOfSunset(&diags)
+			}
+			if !diags.Equal(tc.want) {
+				t.Errorf("diagnostics:\n got %v\nwant %v", diags, tc.want)
+			}
+		})
+	}
+}
+
+// The warning reaches a run through whichever operation reads the date
+// first, so every operation that calls Mergify defers it.
+func TestEveryOperationCallingMergifyWarnsOfTheEndOfItsAPIVersion(t *testing.T) {
+	files, err := filepath.Glob("*.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fset := token.NewFileSet()
+	checked := 0
+	for _, name := range files {
+		if strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(fset, name, nil, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, decl := range file.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Recv == nil || fn.Body == nil || !isOperation(fn.Name.Name) || !uses(fn.Body, "client") {
+				continue
+			}
+			checked++
+			if !defersWarning(fn.Body) {
+				t.Errorf("%s: %s calls Mergify without `defer ….client.warnOfSunset(&resp.Diagnostics)`", fset.Position(fn.Pos()), fn.Name.Name)
+			}
+		}
+	}
+	if checked == 0 {
+		t.Fatal("found no operation calling Mergify")
+	}
+}
+
+func isOperation(name string) bool {
+	switch name {
+	case "Create", "Read", "Update", "Delete":
+		return true
+	}
+	return false
+}
+
+func uses(node ast.Node, field string) bool {
+	found := false
+	ast.Inspect(node, func(n ast.Node) bool {
+		if sel, ok := n.(*ast.SelectorExpr); ok && sel.Sel.Name == field {
+			found = true
+		}
+		return !found
+	})
+	return found
+}
+
+func defersWarning(body *ast.BlockStmt) bool {
+	for _, stmt := range body.List {
+		if d, ok := stmt.(*ast.DeferStmt); ok {
+			if sel, ok := d.Call.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == "warnOfSunset" {
+				return true
+			}
+		}
+	}
+	return false
 }
