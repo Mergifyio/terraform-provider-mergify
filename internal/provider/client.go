@@ -9,7 +9,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
+	"time"
 )
 
 // The Mergify API version this provider release is built against.
@@ -47,6 +49,71 @@ func IsNotFound(err error) bool {
 	return errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound
 }
 
+// The code of Mergify's 400 to a request naming an API version it does not
+// serve: one it never served, or no longer serves.
+const apiVersionUnknown = "API_VERSION_UNKNOWN"
+
+// How a Terraform user gets a newer release of this provider.
+const howToUpgrade = "raise the version of Mergifyio/mergify in required_providers, then run `terraform init -upgrade`."
+
+func isDate(value string) bool {
+	_, err := time.Parse(time.DateOnly, value)
+	return err == nil
+}
+
+// versionRefusalError is a Mergify server refusing the API version this
+// release calls, which it does to every request.
+type versionRefusalError struct {
+	err *APIError
+	// The versions the server serves, oldest first.
+	served []string
+}
+
+func (e *versionRefusalError) Unwrap() error { return e.err }
+
+// Error names the way out the versions the server serves point to: one
+// serving a newer version than this release's retired it, one serving only
+// older ones predates this release.
+func (e *versionRefusalError) Error() string {
+	refused := "This release of terraform-provider-mergify calls Mergify's API as version " + apiVersion + ", which this Mergify server does not serve"
+	if len(e.served) == 0 {
+		return refused + ". Upgrade Mergify, or upgrade terraform-provider-mergify: " + howToUpgrade
+	}
+	refused += " (it serves " + strings.Join(e.served, ", ") + "). "
+	switch newest := e.served[len(e.served)-1]; {
+	case newest > apiVersion:
+		return refused + "Upgrade terraform-provider-mergify: " + howToUpgrade
+	case newest < apiVersion:
+		return refused + "Upgrade Mergify to a release that serves " + apiVersion +
+			", or use an older release of terraform-provider-mergify: lower the version of Mergifyio/mergify in required_providers, then run `terraform init -upgrade`."
+	default:
+		return refused + "Upgrade Mergify, or upgrade terraform-provider-mergify: " + howToUpgrade
+	}
+}
+
+// versionRefusal returns err as a refusal of the API version this release
+// calls, or nil when it is not one.
+func versionRefusal(err *APIError) *versionRefusalError {
+	if err.StatusCode != http.StatusBadRequest {
+		return nil
+	}
+	if code, _ := APIErrorCode(err); code != apiVersionUnknown {
+		return nil
+	}
+	var body struct {
+		ServedVersions []string `json:"served_versions"`
+	}
+	_ = json.Unmarshal([]byte(err.Body), &body)
+	var served []string
+	for _, version := range body.ServedVersions {
+		if isDate(version) {
+			served = append(served, version)
+		}
+	}
+	slices.Sort(served)
+	return &versionRefusalError{err: err, served: served}
+}
+
 func (c *Client) do(ctx context.Context, method, path string, body, out any) error {
 	var bodyReader io.Reader
 	if body != nil {
@@ -77,7 +144,11 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 
 	respBody, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode >= 400 {
-		return &APIError{Method: method, Path: path, StatusCode: resp.StatusCode, Body: string(respBody)}
+		apiErr := &APIError{Method: method, Path: path, StatusCode: resp.StatusCode, Body: string(respBody)}
+		if refusal := versionRefusal(apiErr); refusal != nil {
+			return refusal
+		}
+		return apiErr
 	}
 
 	if out != nil && len(respBody) > 0 {
