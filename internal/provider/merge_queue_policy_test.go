@@ -54,7 +54,7 @@ func newFakeMergeQueuePoliciesAPI(t *testing.T) (*fakeMergeQueuePoliciesAPI, *ht
 	return api, srv
 }
 
-func boolPointer(v bool) *bool {
+func pointer[T any](v T) *T {
 	return &v
 }
 
@@ -536,7 +536,7 @@ func TestOrganizationMergeQueuePolicy(t *testing.T) {
 				PreConfig: func() {
 					api.set(func() {
 						p, _ := api.only()
-						p.body.Settings.BatchPullRequest = boolPointer(false)
+						p.body.Settings.BatchPullRequest = pointer(false)
 					})
 				},
 				Config: organizationPolicyConfig(srv, `
@@ -690,7 +690,7 @@ func TestMergeQueuePolicyRefusals(t *testing.T) {
 				api.add("engine", MergeQueuePolicy{
 					Name:     "main without drafts",
 					Target:   MergeQueuePolicyTarget{Branches: MergeQueuePolicyPatterns{IncludePatterns: []string{"~ALL"}, ExcludePatterns: []string{}}},
-					Settings: MergeQueuePolicySettings{BatchPullRequest: boolPointer(true)},
+					Settings: MergeQueuePolicySettings{BatchPullRequest: pointer(true)},
 				})
 			},
 			config: repositoryPolicy,

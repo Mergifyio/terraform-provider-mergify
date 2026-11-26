@@ -53,6 +53,7 @@ what the resources and data sources you use need:
 
 | Resource or data source | Permissions |
 | --- | --- |
+| `mergify_oidc_trust_policy` | OIDC Trust Policies: Read & write |
 | `mergify_organization_default_products` | Products: Read & write |
 | `mergify_repository_products` | Products: Read & write, Repositories: Read |
 | `mergify_slack_ci_insights_notification` | Slack: Read & write |

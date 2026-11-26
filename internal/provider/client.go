@@ -526,3 +526,135 @@ func (c *Client) GetMergeQueueBranchSettings(ctx context.Context, owner, reposit
 	}
 	return &resp, nil
 }
+
+// TrustPolicyLine is a line of a trust policy's conditions: the values it
+// lists, or, nil, every value, which the API names `any`.
+type TrustPolicyLine[T any] []T
+
+func (l TrustPolicyLine[T]) MarshalJSON() ([]byte, error) {
+	if l == nil {
+		return json.Marshal("any")
+	}
+	return json.Marshal([]T(l))
+}
+
+func (l *TrustPolicyLine[T]) UnmarshalJSON(data []byte) error {
+	if string(bytes.TrimSpace(data)) == "null" {
+		return errors.New("a trust policy line is a list or `any`, got null")
+	}
+	var word string
+	if json.Unmarshal(data, &word) == nil {
+		if word != "any" {
+			return fmt.Errorf("a trust policy line is a list or `any`, got %q", word)
+		}
+		*l = nil
+		return nil
+	}
+	var listed []T
+	if err := json.Unmarshal(data, &listed); err != nil {
+		return err
+	}
+	*l = TrustPolicyLine[T](listed)
+	return nil
+}
+
+// TrustPolicyRepositories is the repositories whose jobs a trust policy
+// matches: IDs for the `only` and `all_except` modes, Visibilities for the
+// `visibility` mode.
+type TrustPolicyRepositories struct {
+	Mode         string   `json:"mode"`
+	IDs          []int64  `json:"ids,omitempty"`
+	Visibilities []string `json:"visibilities,omitempty"`
+}
+
+// TrustPolicyWorkflow is a workflow file of the job's own repository, or,
+// with a RepositoryID, a reusable workflow the job runs.
+type TrustPolicyWorkflow struct {
+	RepositoryID *int64  `json:"repository_id,omitempty"`
+	Path         string  `json:"path"`
+	Ref          *string `json:"ref,omitempty"`
+}
+
+// GitHubActionsConditions is what a trust policy matches of a GitHub Actions
+// job, besides its repository.
+type GitHubActionsConditions struct {
+	Events       TrustPolicyLine[string]              `json:"events"`
+	Workflows    TrustPolicyLine[TrustPolicyWorkflow] `json:"workflows"`
+	Environments TrustPolicyLine[string]              `json:"environments"`
+}
+
+// TrustPolicy is an OIDC trust policy of an organization: which CI jobs get
+// a Mergify OIDC CI token from their ID token, and what that token may do.
+type TrustPolicy struct {
+	ID           string                  `json:"id,omitempty"`
+	Name         string                  `json:"name"`
+	Provider     string                  `json:"provider"`
+	Repositories TrustPolicyRepositories `json:"repositories"`
+	Conditions   GitHubActionsConditions `json:"conditions"`
+	// The level the token gets on each resource. nil leaves the field out of
+	// a request, and is what a Mergify that predates it answers: CI reporting
+	// alone, all such a Mergify grants.
+	Permissions map[string]string `json:"permissions,omitempty"`
+}
+
+// refusesField tells whether err is the API refusing field of a request's
+// body, as a Mergify that predates the field does.
+func refusesField(err error, field string) bool {
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) || apiErr.StatusCode != http.StatusUnprocessableEntity {
+		return false
+	}
+	var body struct {
+		Detail []struct {
+			Type string `json:"type"`
+			Loc  []any  `json:"loc"`
+		} `json:"detail"`
+	}
+	if json.Unmarshal([]byte(apiErr.Body), &body) != nil {
+		return false
+	}
+	for _, e := range body.Detail {
+		if e.Type == "extra_forbidden" && slices.Equal(e.Loc, []any{"body", field}) {
+			return true
+		}
+	}
+	return false
+}
+
+func trustPoliciesPath(owner, policyID string) string {
+	path := "/ci/" + url.PathEscape(owner) + "/oidc/trust-policies"
+	if policyID != "" {
+		path += "/" + url.PathEscape(policyID)
+	}
+	return path
+}
+
+func (c *Client) CreateTrustPolicy(ctx context.Context, owner string, policy TrustPolicy) (*TrustPolicy, error) {
+	var resp TrustPolicy
+	if err := c.do(ctx, http.MethodPost, trustPoliciesPath(owner, ""), policy, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+func (c *Client) GetTrustPolicy(ctx context.Context, owner, policyID string) (*TrustPolicy, error) {
+	var resp TrustPolicy
+	if err := c.do(ctx, http.MethodGet, trustPoliciesPath(owner, policyID), nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// UpdateTrustPolicy sets every field of the policy to policy's, but its
+// permissions when policy has none, which the policy then keeps.
+func (c *Client) UpdateTrustPolicy(ctx context.Context, owner, policyID string, policy TrustPolicy) (*TrustPolicy, error) {
+	var resp TrustPolicy
+	if err := c.do(ctx, http.MethodPatch, trustPoliciesPath(owner, policyID), policy, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+func (c *Client) DeleteTrustPolicy(ctx context.Context, owner, policyID string) error {
+	return c.do(ctx, http.MethodDelete, trustPoliciesPath(owner, policyID), nil, nil)
+}

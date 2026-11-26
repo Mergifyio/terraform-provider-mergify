@@ -97,6 +97,7 @@ func (p *MergifyProvider) Resources(_ context.Context) []func() resource.Resourc
 		NewSlackTestQuarantineNotificationResource,
 		NewOrganizationMergeQueuePolicyResource,
 		NewRepositoryMergeQueuePolicyResource,
+		NewOIDCTrustPolicyResource,
 	}
 }
 
