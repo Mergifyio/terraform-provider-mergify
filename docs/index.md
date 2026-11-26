@@ -76,6 +76,21 @@ those names too.
 [auth]: https://docs.mergify.com/api/usage
 [permissions]: https://docs.mergify.com/api/usage#application-key-permissions
 
+## API version
+
+Each release of the provider calls one [API version][versions] of the
+Mergify API: this release calls `2026-11-20`, whatever version your
+organization is on. Moving your organization to a newer version does not
+move the provider. Upgrading the provider does: raise the `version` of
+`Mergifyio/mergify` in `required_providers`, then run
+`terraform init -upgrade`.
+
+Before Mergify stops serving the version a release calls, the provider warns
+you of the date it stops in the output of each `terraform plan` or
+`terraform apply` that calls Mergify: upgrade the provider before then.
+
+[versions]: https://docs.mergify.com/api/versions
+
 ## Schema
 
 ### Optional
