@@ -8,6 +8,7 @@ import (
 	"go/token"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -37,6 +38,24 @@ func TestClientNamesAPIVersion(t *testing.T) {
 	}
 	if version := <-got; version != "2026-11-20" {
 		t.Errorf("Mergify-Version: got %q, want %q", version, "2026-11-20")
+	}
+}
+
+// The registry page tells users which version a release calls and how to
+// move to a newer one, so it moves with the pin and with the provider's own
+// upgrade steps.
+func TestRegistryDocsMatchTheRelease(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "docs", "index.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc := strings.Join(strings.Fields(string(raw)), " ")
+	if want := "this release calls `" + apiVersion + "`"; !strings.Contains(doc, want) {
+		t.Errorf("docs/index.md does not say %q", want)
+	}
+	unquoted := func(s string) string { return strings.ReplaceAll(s, "`", "") }
+	if !strings.Contains(unquoted(doc), unquoted(howToUpgrade)) {
+		t.Errorf("docs/index.md does not give the upgrade steps %q", howToUpgrade)
 	}
 }
 
