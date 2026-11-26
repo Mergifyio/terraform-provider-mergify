@@ -15,6 +15,9 @@ Early development. Currently exposes:
   merge queue policies of an organization or a repository, which set merge queue settings for the
   repositories and base branches they target; the `mergify_merge_queue_branch_settings` data source
   reads what a base branch uses, and which policies decided it.
+- `mergify_oidc_trust_policy` — manage the OIDC trust policies of an organization, which decide
+  which GitHub Actions jobs get a Mergify OIDC CI token from their ID token, instead of a CI key
+  kept in a secret.
 
 ## Usage
 
