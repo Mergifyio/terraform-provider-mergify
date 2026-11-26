@@ -135,7 +135,7 @@ func patternsAttribute(description, patterns string) schema.SingleNestedAttribut
 				Required:    true,
 				ElementType: types.StringType,
 				Description: "The ones targeted, at least one. " + patterns,
-				Validators:  []validator.Set{setNotEmpty{}},
+				Validators:  []validator.Set{setNotEmpty{"Must hold at least one pattern."}},
 			},
 			"exclude_patterns": schema.SetAttribute{
 				Optional:    true,
@@ -409,19 +409,19 @@ func (r *MergeQueuePolicyResource) ImportState(ctx context.Context, req resource
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), policyID)...)
 }
 
-// setNotEmpty refuses a set holding no element.
-type setNotEmpty struct{}
+// setNotEmpty refuses a set holding no element, answering detail.
+type setNotEmpty struct{ detail string }
 
 func (setNotEmpty) Description(context.Context) string { return "must hold at least one element" }
 
 func (v setNotEmpty) MarkdownDescription(ctx context.Context) string { return v.Description(ctx) }
 
-func (setNotEmpty) ValidateSet(_ context.Context, req validator.SetRequest, resp *validator.SetResponse) {
+func (v setNotEmpty) ValidateSet(_ context.Context, req validator.SetRequest, resp *validator.SetResponse) {
 	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
 		return
 	}
 	if len(req.ConfigValue.Elements()) == 0 {
-		resp.Diagnostics.AddAttributeError(req.Path, "Empty set", "Must hold at least one pattern.")
+		resp.Diagnostics.AddAttributeError(req.Path, "Empty set", v.detail)
 	}
 }
 
